@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Unity.Collections;
 using UnityEngine;
 
-public class XUiC_MiniMap : XUiController
+public class XUiC_MiniMap_Lazy : XUiController
 {
     public GameObject prefabMapSprite;
 
@@ -367,7 +364,7 @@ public class XUiC_MiniMap : XUiController
             }
             if (clearMapMaskFlag)
             {
-                UpdateMapSection(inStartX, inStartZ, inEndX, inEndZ, inDrawnStartX, inDrawnStartZ, inDrawnEndX, inDrawnEndZ);
+                UpdateMapSectionTest(inStartX, inStartZ, inEndX, inEndZ, inDrawnStartX, inDrawnStartZ, inDrawnEndX, inDrawnEndZ);
             }
         }
 
@@ -459,7 +456,7 @@ public class XUiC_MiniMap : XUiController
             }
             if (clearMapMaskFlag)
             {
-                UpdateMapSection(inStartX, inStartZ, inEndX, inEndZ, inDrawnStartX, inDrawnStartZ, inDrawnEndX, inDrawnEndZ);
+                UpdateMapSectionTest(inStartX, inStartZ, inEndX, inEndZ, inDrawnStartX, inDrawnStartZ, inDrawnEndX, inDrawnEndZ);
             }
         }
 

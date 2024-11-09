@@ -73,6 +73,10 @@
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>D:\Steam\steamapps\common\7 Days To Die\7DaysToDie_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.UI, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>D:\Steam\steamapps\common\7 Days To Die\7DaysToDie_Data\Managed\UnityEngine.UI.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AgUI.cs" />
@@ -83,11 +87,10 @@
     <Compile Include="HarmonyInject\Patch_XUiC_WindowNonPagingHeader.cs" />
     <Compile Include="HarmonyInject\Patch_XUiC_WindowSelector.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="XUiC_MiniMap1.cs" />
-    <Compile Include="XUiC_MiniMap2.cs" />
-    <Compile Include="XUiC_MiniMap_Back.cs" />
+    <Compile Include="XUiC_MiniMap_Hot.cs" />
     <Compile Include="XUiC_MiniMap.cs" />
-    <Compile Include="XUiC_MiniMap_End.cs" />
+    <Compile Include="XUiC_MiniMap_Snap.cs" />
+    <Compile Include="XUiC_MiniMap_Lazy.cs" />
     <Compile Include="XUiC_PocketMirror.cs" />
   </ItemGroup>
   <ItemGroup />

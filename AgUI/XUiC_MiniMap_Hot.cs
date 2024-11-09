@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using Unity.Collections;
 using UnityEngine;
 
-public class XUiC_MiniMap_End : XUiController
+public class XUiC_MiniMap_Hot : XUiController
 {
     public GameObject prefabMapSprite;
 
@@ -13,8 +16,6 @@ public class XUiC_MiniMap_End : XUiController
     public XUiV_Texture mapViewTexture;
     public XUiV_Panel mapViewClip;
     public XUiV_Sprite mapViewCross;
-
-    public Transform mapViewTransform;
 
     public Texture2D mapTexture;
 
@@ -33,20 +34,15 @@ public class XUiC_MiniMap_End : XUiController
 
     public Transform mapViewClipTransform;
 
-    public DictionarySave<long, MapObject> keyToMapObject = new DictionarySave<long, MapObject>();
     public DictionarySave<int, NavObject> keyToNavObject = new DictionarySave<int, NavObject>();
     public DictionarySave<int, GameObject> keyToNavSprite = new DictionarySave<int, GameObject>();
-    public DictionarySave<long, GameObject> keyToMapSprite = new DictionarySave<long, GameObject>();
 
     public HashSetLong navObjectsOnMapAlive = new HashSetLong();
-    public HashSetLong mapObjectsOnMapAlive = new HashSetLong();
 
     public bool isOpen;
     public bool bMapInitialized;
     public bool bShouldRedrawMap;
     public float timeToRedrawMap;
-
-    public DictionarySave<int, List<int>> mapMaskChunks = new DictionarySave<int, List<int>>();
 
     public Vector3i worldMinSize;
     public Vector3i worldMaxSize;
@@ -85,12 +81,6 @@ public class XUiC_MiniMap_End : XUiController
         mapViewClip = base.GetChildById("mapViewClip").ViewComponent as XUiV_Panel;
         mapViewCross = base.GetChildById("mapViewCross").viewComponent as XUiV_Sprite;
 
-        mapViewTransform = UnityEngine.Object.Instantiate(DataLoader.LoadAsset<GameObject>("#@modfolder(AG-UI):Resources/resources.unity3d?MiniMap")).transform; ;
-        mapViewTransform.parent = mapView.UiTransform;
-        //mapViewTransform.GetComponent<Renderer>().material = new Material(Shader.Find("GameUI/MainMap"));
-        mapViewTransform.localPosition = new Vector3(148, 148);
-        mapViewTransform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-
         mapViewClipTransform = mapViewClip.UiTransform;
         if (mapTexture == null)
         {
@@ -107,7 +97,6 @@ public class XUiC_MiniMap_End : XUiController
         NavObjectManager.Instance.OnNavObjectRemoved += Instance_OnNavObjectRemoved;
     }
 
-    /* DONE */
     public void InitMap()
     {
         if (base.xui.playerUI.entityPlayer != null)
@@ -119,7 +108,6 @@ public class XUiC_MiniMap_End : XUiController
         }
     }
 
-    /* DONE */
     public void Instance_OnNavObjectRemoved(NavObject newNavObject)
     {
         UnityEngine.Object.Destroy(keyToNavSprite[newNavObject.Key]);
@@ -136,7 +124,6 @@ public class XUiC_MiniMap_End : XUiController
         }
         if (GameManager.Instance.World.GetWorldExtent(out Vector3i _minSize, out Vector3i _maxSize))
         {
-            Log.Out("OnOpen==========地图尺寸：_minSize={0},_maxSize={1}", _minSize, _maxSize);
             worldMinSize = _minSize;
             worldMaxSize = _maxSize;
         }
@@ -153,7 +140,6 @@ public class XUiC_MiniMap_End : XUiController
         base.xui.playerUI.GetComponentInParent<LocalPlayerCamera>().PreRender += OnPreRender;
     }
 
-    /* DONE */
     public void OnPreRender(LocalPlayerCamera _localPlayerCamera)
     {
         Shader.SetGlobalVector("_MainMapPosAndScale", new Vector4(mapPos.x, mapPos.y, mapScale, mapScale));
@@ -193,21 +179,20 @@ public class XUiC_MiniMap_End : XUiController
         }
         if (!base.xui.playerUI.entityPlayer.IsMoveStateStill())
         {
-            Vector3 worldPosCurrent = localPlayer.GetPosition();
-            if (!worldPosCurrent.Equals(worldPosLast))
+            Vector3 playerCurrentPos = localPlayer.GetPosition();
+            if (!playerCurrentPos.Equals(worldPosLast))
             {
 
-                UpdateMapOnMove(worldPosCurrent);
+                UpdateMapOnMove(playerCurrentPos);
                 bShouldRedrawMap = false;
-                worldPosLast = worldPosCurrent;
+                worldPosLast = playerCurrentPos;
                 UpdateMapPos();
             }
         }
         UpdateMapCross();
-        UpdateMapObjects();
+        UpdateNavObjectList();
     }
 
-    /* DONE */
     public void UpdateMapAtPos(Vector3 worldPos)
     {
         int worldPosX = (int)worldPos.x;
@@ -223,7 +208,6 @@ public class XUiC_MiniMap_End : XUiController
         int startZ = (int)mapMiddlePosChunks.y - mapSize / 2;
         int endZ = (int)mapMiddlePosChunks.y + mapSize / 2;
 
-        Log.Out("======定点更新：startX={0}，endX={1}，startZ={2}，endZ={3}", startX, endX, startZ, endZ);
         UpdateMapSection(startX, startZ, endX, endZ, 0, 0, mapSize, mapSize);
 
         mapScrollTextureOffset = Vector2.zero;
@@ -278,19 +262,13 @@ public class XUiC_MiniMap_End : XUiController
         int deltaChunksZAbs = Mathf.Abs(deltaChunksZ);
         if (deltaChunksXAbs > 9 || deltaChunksZAbs > 9)
         {
-            Log.Out("=============================================需要重绘地图");
             bShouldRedrawMap = true;
             return;
         }
 
         if (deltaChunksX != 0 || deltaChunksZ != 0)
         {
-            Log.Out("=============================================");
-            Log.Out("======先前数据：worldPos={0}，mapMiddlePosPixel={1}，mapMiddlePosChunks={2}", worldPos, mapMiddlePosPixel, mapMiddlePosChunks);
-            Log.Out("======累计滚动：mapScrollTextureOffset={0}，mapScrollTextureChunksOffsetX={1},mapScrollTextureChunksOffsetZ={2}", mapScrollTextureOffset, mapScrollTextureChunksOffsetX, mapScrollTextureChunksOffsetZ);
-            Log.Out("======滚动更新：deltaChunksX={0}，deltaChunksZ={1}", deltaChunksX, deltaChunksZ);
             UpdateMapByScroll(deltaChunksX, deltaChunksZ);
-            Log.Out("=============================================");
         }
     }
 
@@ -356,45 +334,17 @@ public class XUiC_MiniMap_End : XUiController
             outDrawnEndZ = outDrawnEndZ == 0 ? mapSize : outDrawnEndZ;
             int outDrawnStartZ = Utils.WrapIndex(outDrawnEndZ - mapSize, mapSize);
 
-            //更新外层地图
-            Log.Out("======X轴外层-滚动更新：outStartX={0}，outEndX={1}，outStartZ={2}，outEndZ={3}", outStartX, outEndX, outStartZ, outEndZ);
-            Log.Out("======X轴外层-滚动绘制：outDrawnStartX={0}，outDrawnEndX={1}，outDrawnStartZ={2}，outDrawnEndZ={3}", outDrawnStartX, outDrawnEndX, outDrawnStartZ, outDrawnEndZ);
             UpdateMapSection(outStartX, outStartZ, outEndX, outEndZ, outDrawnStartX, outDrawnStartZ, outDrawnEndX, outDrawnEndZ);
+
             int inStartZ = mapMiddlePosChunksZ - mapVisualRangeNegative;
             int inEndZ = inStartZ + mapVisualRange;
 
             int inDrawnEndZ = mapScrollTextureChunksOffsetZ * 16 + mapVisualRangePositive + mapSize / 2;
             inDrawnEndZ = Utils.WrapIndex(inDrawnEndZ, mapSize);
             inDrawnEndZ = inDrawnEndZ == 0 ? mapSize : inDrawnEndZ;
-            int inDrawnStartZ = inDrawnEndZ - mapVisualRange;
+            int inDrawnStartZ = Utils.WrapIndex(inDrawnEndZ - mapVisualRange, mapSize);
 
-            bool clearMapMaskFlag = false;
-            foreach (KeyValuePair<int, List<int>> mapMaskChunksX in mapMaskChunks.Dict)
-            {
-                if (inStartX < mapMaskChunksX.Key && mapMaskChunksX.Key < inEndX)
-                {
-                    foreach (var mapMaskChunksZ in mapMaskChunksX.Value)
-                    {
-                        if (inStartZ < mapMaskChunksZ && mapMaskChunksZ < inEndZ)
-                        {
-                            Log.Out("=============================================需要清除Mask：mapMaskChunksX={0}，mapMaskChunksZ={1}", mapMaskChunksX.Key, mapMaskChunksZ);
-                            clearMapMaskFlag = true;
-                            break;
-                        }
-                    }
-                    if (clearMapMaskFlag)
-                    {
-                        break;
-                    }
-                }
-            }
-            Log.Out("======X轴内层-滚动更新：inStartX={0}，inEndX={1}，inStartZ={2}，inEndZ={3}", inStartX, inEndX, inStartZ, inEndZ);
-            Log.Out("======X轴内层-滚动绘制：inDrawnStartX={0}，inDrawnEndX={1}，inDrawnStartZ={2}，inDrawnEndZ={3}", inDrawnStartX, inDrawnEndX, inDrawnStartZ, inDrawnEndZ);
-            if (clearMapMaskFlag)
-            {
-                //更新内层地图
-                UpdateMapSectionRender(inStartX, inStartZ, inEndX, inEndZ, inDrawnStartX, inDrawnStartZ, inDrawnEndX, inDrawnEndZ);
-            }
+            UpdateMapSectionTest(inStartX, inStartZ, inEndX, inEndZ, inDrawnStartX, inDrawnStartZ, inDrawnEndX, inDrawnEndZ);
         }
 
         if (deltaChunksZ != 0)
@@ -454,10 +404,6 @@ public class XUiC_MiniMap_End : XUiController
             outDrawnEndX = outDrawnEndX == 0 ? mapSize : outDrawnEndX;
             int outDrawnStartX = Utils.WrapIndex(outDrawnEndX - mapSize, mapSize);
 
-            //更新外层地图
-            Log.Out("======Z轴外层-滚动更新：outStartX={0}，outEndX={1}，outStartZ={2}，outEndZ={3}", outStartX, outEndX, outStartZ, outEndZ);
-            Log.Out("======Z轴外层-滚动绘制：outDrawnStartX={0}，outDrawnEndX={1}，outDrawnStartZ={2}，outDrawnEndZ={3}", outDrawnStartX, outDrawnEndX, outDrawnStartZ, outDrawnEndZ);
-
             UpdateMapSection(outStartX, outStartZ, outEndX, outEndZ, outDrawnStartX, outDrawnStartZ, outDrawnEndX, outDrawnEndZ);
 
             int inStartX = mapMiddlePosChunksX - mapVisualRangeNegative;
@@ -466,35 +412,9 @@ public class XUiC_MiniMap_End : XUiController
             int inDrawnEndX = mapScrollTextureChunksOffsetX * 16 + mapVisualRangePositive + mapSize / 2;
             inDrawnEndX = Utils.WrapIndex(inDrawnEndX, mapSize);
             inDrawnEndX = inDrawnEndX == 0 ? mapSize : inDrawnEndX;
-            int inDrawnStartX = inDrawnEndX - mapVisualRange;
+            int inDrawnStartX = Utils.WrapIndex(inDrawnEndX - mapVisualRange, mapSize);
 
-            bool clearMapMaskFlag = false;
-            foreach (KeyValuePair<int, List<int>> mapMaskChunksX in mapMaskChunks.Dict)
-            {
-                if (inStartX < mapMaskChunksX.Key && mapMaskChunksX.Key < inEndX)
-                {
-                    foreach (var mapMaskChunksZ in mapMaskChunksX.Value)
-                    {
-                        if (inStartZ < mapMaskChunksZ && mapMaskChunksZ < inEndZ)
-                        {
-                            clearMapMaskFlag = true;
-                            Log.Out("=============================================需要清除Mask：mapMaskChunksX={0}，mapMaskChunksZ={1}", mapMaskChunksX.Key, mapMaskChunksZ);
-                            break;
-                        }
-                    }
-                    if (clearMapMaskFlag)
-                    {
-                        break;
-                    }
-                }
-            }
-            Log.Out("======Z轴内层-滚动更新：inStartX={0}，inEndX={1}，inStartZ={2}，inEndZ={3}", inStartX, inEndX, inStartZ, inEndZ);
-            Log.Out("======Z轴内层-滚动绘制：inDrawnStartX={0}，inDrawnEndX={1}，inDrawnStartZ={2}，inDrawnEndZ={3}", inDrawnStartX, inDrawnEndX, inDrawnStartZ, inDrawnEndZ);
-            if (clearMapMaskFlag)
-            {
-                //更新内层地图
-                UpdateMapSectionRender(inStartX, inStartZ, inEndX, inEndZ, inDrawnStartX, inDrawnStartZ, inDrawnEndX, inDrawnEndZ);
-            }
+            UpdateMapSectionTest(inStartX, inStartZ, inEndX, inEndZ, inDrawnStartX, inDrawnStartZ, inDrawnEndX, inDrawnEndZ);
         }
 
         mapScrollTextureOffset.x += (float)(deltaChunksX * 16) / (float)mapTexture.width;
@@ -510,10 +430,9 @@ public class XUiC_MiniMap_End : XUiController
         SendMapPositionToServer();
     }
 
-    /* DONE */
     public void UpdateMapSection(int startX, int startZ, int endX, int endZ, int drawnStartX, int drawnStartZ, int drawnEndX, int drawnEndZ)
     {
-        IMapChunkDatabase mapDatabase = localPlayer.ChunkObserver.mapDatabase;
+        IMapChunkDatabase mapDatabase = base.xui.playerUI.entityPlayer.ChunkObserver.mapDatabase;
         NativeArray<Color32> rawTextureData = mapTexture.GetRawTextureData<Color32>();
         int currentX = startX;
         int drwanCurrentX = drawnStartX;
@@ -536,20 +455,6 @@ public class XUiC_MiniMap_End : XUiController
                         int rawCurrentIndex = rawCurrentX + rawCurrentZ;
                         rawTextureData[rawCurrentIndex] = new Color32(0, 0, 0, 0);
                     }
-
-                    if (mapMaskChunks.ContainsKey(currentX))
-                    {
-                        if (!mapMaskChunks[currentX].Contains(currentZ))
-                        {
-                            mapMaskChunks[currentX].Add(currentZ);
-                        }
-                    }
-                    else
-                    {
-                        List<int> mapMaskChunksZ = new List<int>();
-                        mapMaskChunksZ.Add(currentZ);
-                        mapMaskChunks.Add(currentX, mapMaskChunksZ);
-                    }
                 }
                 else
                 {
@@ -561,18 +466,6 @@ public class XUiC_MiniMap_End : XUiController
                         Color32 rawCurrentColor = Utils.FromColor5To32(currentChunkColors[k]);
                         rawTextureData[rawCurrentIndex] = new Color32(rawCurrentColor.r, rawCurrentColor.g, rawCurrentColor.b, byte.MaxValue);
                     }
-
-                    if (mapMaskChunks.ContainsKey(currentX))
-                    {
-                        if (mapMaskChunks[currentX].Contains(currentZ))
-                        {
-                            mapMaskChunks[currentX].Remove(currentZ);
-                        }
-                        if (mapMaskChunks[currentX].Count == 0)
-                        {
-                            mapMaskChunks.Remove(currentX);
-                        }
-                    }
                 }
                 currentZ += 16;
                 drwanCurrentZ = Utils.WrapIndex(drwanCurrentZ + 16, drawnEndZ);
@@ -582,8 +475,7 @@ public class XUiC_MiniMap_End : XUiController
         }
     }
 
-    /* DONE */
-    public void UpdateMapSectionRender(int startX, int startZ, int endX, int endZ, int drawnStartX, int drawnStartZ, int drawnEndX, int drawnEndZ)
+    public void UpdateMapSectionTest(int startX, int startZ, int endX, int endZ, int drawnStartX, int drawnStartZ, int drawnEndX, int drawnEndZ)
     {
         IMapChunkDatabase mapDatabase = base.xui.playerUI.entityPlayer.ChunkObserver.mapDatabase;
         NativeArray<Color32> rawTextureData = mapTexture.GetRawTextureData<Color32>();
@@ -608,20 +500,6 @@ public class XUiC_MiniMap_End : XUiController
                         int rawCurrentIndex = rawCurrentX + rawCurrentZ;
                         rawTextureData[rawCurrentIndex] = new Color32(0, 229, 255, byte.MaxValue);
                     }
-
-                    if (mapMaskChunks.ContainsKey(currentX))
-                    {
-                        if (!mapMaskChunks[currentX].Contains(currentZ))
-                        {
-                            mapMaskChunks[currentX].Add(currentZ);
-                        }
-                    }
-                    else
-                    {
-                        List<int> mapMaskChunksZ = new List<int>();
-                        mapMaskChunksZ.Add(currentZ);
-                        mapMaskChunks.Add(currentX, mapMaskChunksZ);
-                    }
                 }
                 else
                 {
@@ -633,18 +511,6 @@ public class XUiC_MiniMap_End : XUiController
                         Color32 rawCurrentColor = Utils.FromColor5To32(currentChunkColors[k]);
                         rawTextureData[rawCurrentIndex] = new Color32(0, 229, 255, byte.MaxValue);
                     }
-
-                    if (mapMaskChunks.ContainsKey(currentX))
-                    {
-                        if (mapMaskChunks[currentX].Contains(currentZ))
-                        {
-                            mapMaskChunks[currentX].Remove(currentZ);
-                        }
-                        if (mapMaskChunks[currentX].Count == 0)
-                        {
-                            mapMaskChunks.Remove(currentX);
-                        }
-                    }
                 }
                 currentZ += 16;
                 drwanCurrentZ = Utils.WrapIndex(drwanCurrentZ + 16, drawnEndZ);
@@ -654,7 +520,6 @@ public class XUiC_MiniMap_End : XUiController
         }
     }
 
-    /* DONE */
     public void UpdateMapPos()
     {
         float mapPosBase = (mapSize - mapSizeZoom * mapZoomScale) / 2f;
@@ -664,7 +529,6 @@ public class XUiC_MiniMap_End : XUiController
         mapBGPos = new Vector2((mapPosBase + mapMiddlePosPixel.x) / mapSize, (mapPosBase + mapMiddlePosPixel.y) / mapSize);
     }
 
-    /* DONE */
     public void SendMapPositionToServer()
     {
         if (GameManager.Instance.World.IsRemote() && !mapMiddlePosChunksToServer.Equals(mapMiddlePosChunks))
@@ -672,50 +536,6 @@ public class XUiC_MiniMap_End : XUiController
             mapMiddlePosChunksToServer = mapMiddlePosChunks;
             SingletonMonoBehaviour<ConnectionManager>.Instance.SendToServer(NetPackageManager.GetPackage<NetPackageMapPosition>().Setup(localPlayer.entityId, new Vector2i(Utils.Fastfloor(mapMiddlePosChunks.x), Utils.Fastfloor(mapMiddlePosChunks.y))));
         }
-    }
-
-    /* DONE */
-    public void UpdateMapObjects()
-    {
-        World world = GameManager.Instance.World;
-        navObjectsOnMapAlive.Clear();
-        mapObjectsOnMapAlive.Clear();
-        UpdateNavObjectList();
-        foreach (KeyValuePair<int, NavObject> item in keyToNavObject.Dict)
-        {
-            if (!navObjectsOnMapAlive.Contains(item.Key))
-            {
-                keyToNavObject.MarkToRemove(item.Key);
-                keyToNavSprite.MarkToRemove(item.Key);
-            }
-        }
-        foreach (KeyValuePair<long, MapObject> item2 in keyToMapObject.Dict)
-        {
-            if (!mapObjectsOnMapAlive.Contains(item2.Key))
-            {
-                keyToMapObject.MarkToRemove(item2.Key);
-                keyToMapSprite.MarkToRemove(item2.Key);
-            }
-        }
-        keyToNavObject.RemoveAllMarked((int _key) =>
-        {
-            keyToNavObject.Remove(_key);
-        });
-        keyToNavSprite.RemoveAllMarked((int _key) =>
-        {
-            UnityEngine.Object.Destroy(keyToNavSprite[_key]);
-            keyToNavSprite.Remove(_key);
-        });
-        keyToMapObject.RemoveAllMarked((long _key) =>
-        {
-            keyToMapObject.Remove(_key);
-        });
-        keyToMapSprite.RemoveAllMarked((long _key) =>
-        {
-            UnityEngine.Object.Destroy(keyToMapSprite[_key]);
-            keyToMapSprite.Remove(_key);
-        });
-        localPlayer.selectedSpawnPointKey = -1L;
     }
 
     public void UpdateNavObjectList()
@@ -784,9 +604,26 @@ public class XUiC_MiniMap_End : XUiController
                 navObjectsOnMapAlive.Add(key);
             }
         }
+
+        foreach (KeyValuePair<int, NavObject> item in keyToNavObject.Dict)
+        {
+            if (!navObjectsOnMapAlive.Contains(item.Key))
+            {
+                keyToNavObject.MarkToRemove(item.Key);
+                keyToNavSprite.MarkToRemove(item.Key);
+            }
+        }
+        keyToNavObject.RemoveAllMarked((int _key) =>
+        {
+            keyToNavObject.Remove(_key);
+        });
+        keyToNavSprite.RemoveAllMarked((int _key) =>
+        {
+            UnityEngine.Object.Destroy(keyToNavSprite[_key]);
+            keyToNavSprite.Remove(_key);
+        });
     }
 
-    /* DONE */
     public Vector3 WorldPosToMapPos(Vector3 _worldPos)
     {
         return new Vector3((_worldPos.x - mapMiddlePosPixel.x) * factorWorldToMapPos / mapZoomScale + (float)spriteMiddlePos.x, (_worldPos.z - mapMiddlePosPixel.y) * factorWorldToMapPos / mapZoomScale - (float)spriteMiddlePos.y, 0f);
@@ -794,12 +631,9 @@ public class XUiC_MiniMap_End : XUiController
 
     public void UpdateMapCross()
     {
-        //mapViewTransform.localEulerAngles = new Vector3(0f, 0f, 0f - localPlayer.rotation.y);
         mapViewCross.sprite.gameObject.transform.localEulerAngles = new Vector3(0f, 0f, 0f - localPlayer.rotation.y);
     }
 
-
-    /* DONE */
     public override void OnClose()
     {
         base.OnClose();
@@ -811,7 +645,6 @@ public class XUiC_MiniMap_End : XUiController
         }
     }
 
-    /* DONE */
     public override void Cleanup()
     {
         base.Cleanup();
